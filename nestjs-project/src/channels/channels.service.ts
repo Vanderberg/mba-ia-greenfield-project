@@ -7,21 +7,13 @@ const PG_UNIQUE_VIOLATION = '23505';
 const NICKNAME_COLUMN = 'nickname';
 const MAX_RETRIES = 5;
 
-interface PostgresDriverError {
-  code?: string;
-  detail?: string;
-}
-
 function isPgUniqueViolationOnColumn(err: unknown, column: string): boolean {
   if (!(err instanceof QueryFailedError)) return false;
-  // TypeORM copies the driver error's own properties (code, detail, ...) onto
-  // the QueryFailedError instance itself — driverError carries the same data
-  // with a stable static type instead of relying on that runtime copy.
-  const driverError = err.driverError as unknown as PostgresDriverError;
+  const e = err as any;
   return (
-    driverError.code === PG_UNIQUE_VIOLATION &&
-    typeof driverError.detail === 'string' &&
-    driverError.detail.includes(column)
+    e.code === PG_UNIQUE_VIOLATION &&
+    typeof e.detail === 'string' &&
+    e.detail.includes(column)
   );
 }
 

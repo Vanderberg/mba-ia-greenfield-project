@@ -12,7 +12,6 @@ import { VerificationToken } from '../src/auth/entities/verification-token.entit
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { ValidationExceptionFilter } from '../src/common/filters/validation-exception.filter';
 import { cleanAllTables } from '../src/test/create-test-data-source';
-import { MailService } from '../src/mail/mail.service';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
@@ -61,14 +60,11 @@ describe('Auth (e2e)', () => {
     password = 'password123',
   ): Promise<string> {
     const authService = app.get(AuthService);
-    const mailServiceInstance = (
-      authService as unknown as { mailService: MailService }
-    ).mailService;
+    const mailServiceInstance = (authService as any).mailService;
     let capturedToken = '';
     jest
       .spyOn(mailServiceInstance, 'sendConfirmationEmail')
       .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
-        await Promise.resolve();
         capturedToken = t;
       });
     await request(app.getHttpServer())
@@ -516,14 +512,11 @@ describe('Auth (e2e)', () => {
 
   async function capturePasswordResetToken(email: string): Promise<string> {
     const authService = app.get(AuthService);
-    const mailServiceInstance = (
-      authService as unknown as { mailService: MailService }
-    ).mailService;
+    const mailServiceInstance = (authService as any).mailService;
     let captured = '';
     jest
       .spyOn(mailServiceInstance, 'sendPasswordResetEmail')
       .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
-        await Promise.resolve();
         captured = t;
       });
     await request(app.getHttpServer())

@@ -1,27 +1,6 @@
 import * as Joi from 'joi';
 
-export interface EnvVars {
-  NODE_ENV: 'development' | 'production' | 'test';
-  PORT: number;
-  DB_HOST: string;
-  DB_PORT: number;
-  DB_USERNAME: string;
-  DB_PASSWORD: string;
-  DB_NAME: string;
-  JWT_SECRET: string;
-  JWT_REFRESH_SECRET: string;
-  JWT_ACCESS_EXPIRATION: string;
-  JWT_REFRESH_EXPIRATION: string;
-  CONFIRMATION_TOKEN_EXPIRATION_HOURS: number;
-  PASSWORD_RESET_TOKEN_EXPIRATION_HOURS: number;
-  APP_URL: string;
-  MAIL_HOST: string;
-  MAIL_PORT: number;
-  MAIL_FROM: string;
-  SWAGGER_ENABLED: 'true' | 'false';
-}
-
-export const envValidationSchema = Joi.object<EnvVars>({
+export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),

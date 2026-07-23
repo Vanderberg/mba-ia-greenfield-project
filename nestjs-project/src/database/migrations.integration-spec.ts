@@ -37,11 +37,6 @@ describe('Database migrations (integration)', () => {
       ),
       dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
     ]);
-    // DROP TABLE ... CASCADE does not drop dependent custom types — the enum
-    // survives across runs and CreateAuthTokens' CREATE TYPE then collides.
-    await dataSource.query(
-      `DROP TYPE IF EXISTS "verification_tokens_type_enum"`,
-    );
   });
 
   afterAll(async () => {

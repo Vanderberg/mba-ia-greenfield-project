@@ -1,7 +1,7 @@
 ---
 scope_type: phase
 related_phases: [3]
-status: pending
+status: decided
 date: 2026-07-25
 scope_description: "Backend foundation for video upload and processing: object storage backend (dual-endpoint + CORS), background job queue/worker topology (enqueue trigger, idempotency, dead-letter), resumable large-file (10GB) upload protocol (with upload auth and incomplete-upload cleanup), video draft pre-registration + status lifecycle + unique identifier strategy (with orphan cleanup), FFmpeg-based metadata/thumbnail extraction (worker byte-access strategy), and video streaming/download delivery."
 ---
@@ -44,7 +44,7 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option A (MinIO + `@aws-sdk/client-s3`)** — it is the literal architecture already agreed in `software-arch.mermaid`, keeps local dev fully Docker-contained per the project's networking convention, and its S3-compatible API is reused directly by TD-03 (upload) and TD-06 (streaming/download) instead of inventing bespoke range-serving and resumability logic. Buckets default to **private** (no anonymous read policy) — every read/write goes through the API's credentialed client or a time-boxed presigned URL (TD-06); public/unlisted visibility policy is Phase 04 scope and layers on top without changing this default. **CORS must be enabled on the bucket** (`AllowedOrigins`: the FE's origin, `AllowedMethods`: `GET`, `AllowedHeaders`: `Range`) — without it, the browser's direct range requests to the public endpoint in TD-06 Option B are blocked by the browser itself, regardless of the presigned URL being valid.
 
-**Decision:** _[pending]_
+**Decision:** A (MinIO + `@aws-sdk/client-s3`)
 
 ---
 
@@ -76,7 +76,7 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option A (BullMQ + Redis)** — video transcoding jobs are long-running and CPU-bound; BullMQ's stalled-job detection and backoff/retry semantics are specifically built for exactly this "worker crashes mid-job" failure mode, which matters more here than avoiding one extra Compose service. The Redis dependency is a one-time addition to `nestjs-project/compose.yaml`, not a recurring cost.
 
-**Decision:** _[pending]_
+**Decision:** A (BullMQ + Redis, separate worker process)
 
 ---
 
@@ -111,7 +111,7 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option A (`tus` via `@tus/s3-store`)** — it is the only option that satisfies both halves of the capability text ("até 10GB" and "sem impacto na performance") without hand-rolling resumability, and it plugs directly into the S3-compatible storage already chosen in TD-01.
 
-**Decision:** _[pending]_
+**Decision:** A (`tus` via `@tus/server` + `@tus/s3-store`)
 
 ---
 
@@ -141,7 +141,7 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option A** — pre-creating the row is what the capability text literally asks for, costs one extra round-trip that is invisible to the end user (the FE issues both calls before showing the upload progress bar), and lets the already-established UUID PK convention double as the unique-URL identifier with no new mechanism.
 
-**Decision:** _[pending]_
+**Decision:** A (pre-create draft row synchronously, then open the upload session against it)
 
 ---
 
@@ -174,7 +174,7 @@ _Subprojects in scope:_
 
 **Implementation note (not a separate strategic axis):** within Option A, the worker still needs some way to invoke the two FFmpeg operations against the local temp file. `fluent-ffmpeg` (paired with `@ffmpeg-installer/ffmpeg` / `@ffprobe-installer/ffprobe` for version-pinned static binaries, avoiding a distro `apt-get install ffmpeg` step with a version that drifts across base image tags) is a thin, well-established convenience wrapper over both commands — this is a library-ergonomics choice, not a decision with competing architectural trade-offs, so it is recorded here as the adopted convention rather than as its own Options table.
 
-**Decision:** _[pending]_
+**Decision:** A (download the full object to worker-local ephemeral disk, then process the local file)
 
 ---
 
@@ -205,7 +205,7 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option B (presigned URL redirect)** — MinIO/S3 already implements correct `Range`/`Accept-Ranges` handling, so proxying through the API (Option A) would only add latency and load without adding capability; Option C solves a problem this phase does not ask for. Presigned URLs reuse the exact S3 client chosen in TD-01 with no new library.
 
-**Decision:** _[pending]_
+**Decision:** B (presigned URL redirect)
 
 ---
 
@@ -213,9 +213,9 @@ _Subprojects in scope:_
 
 | ID | Scope | Decision | Recommendation | Choice |
 |----|-------|----------|---------------|--------|
-| TD-01 | Backend | Object Storage Backend & Client SDK | MinIO + `@aws-sdk/client-s3` | _[pending]_ |
-| TD-02 | Backend | Background Job Queue & Worker Topology | BullMQ + Redis, separate worker process | _[pending]_ |
-| TD-03 | Backend | Large File Upload Protocol (10GB) | `tus` via `@tus/server` + `@tus/s3-store` | _[pending]_ |
-| TD-04 | Backend | Video Draft Pre-registration, Status Lifecycle & Identifier Strategy | Pre-create draft row (UUID) before upload starts; `draft→processing→ready/failed` state machine | _[pending]_ |
-| TD-05 | Backend | Video Processing — Worker Byte-Access Strategy & Tooling | Download to worker-local ephemeral disk + `fluent-ffmpeg` | _[pending]_ |
-| TD-06 | Backend | Video Streaming & Download Delivery Strategy | Presigned URL redirect (direct client↔storage) | _[pending]_ |
+| TD-01 | Backend | Object Storage Backend & Client SDK | MinIO + `@aws-sdk/client-s3` | A |
+| TD-02 | Backend | Background Job Queue & Worker Topology | BullMQ + Redis, separate worker process | A |
+| TD-03 | Backend | Large File Upload Protocol (10GB) | `tus` via `@tus/server` + `@tus/s3-store` | A |
+| TD-04 | Backend | Video Draft Pre-registration, Status Lifecycle & Identifier Strategy | Pre-create draft row (UUID) before upload starts; `draft→processing→ready/failed` state machine | A |
+| TD-05 | Backend | Video Processing — Worker Byte-Access Strategy & Tooling | Download to worker-local ephemeral disk + `fluent-ffmpeg` | A |
+| TD-06 | Backend | Video Streaming & Download Delivery Strategy | Presigned URL redirect (direct client↔storage) | B |

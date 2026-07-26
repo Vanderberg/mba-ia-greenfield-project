@@ -3,7 +3,7 @@
 ---
 scope_type: phase
 related_phases: [3]
-status: pending
+status: decided
 date: 2026-07-25
 ---
 
@@ -45,7 +45,7 @@ _Subprojetos no escopo:_
 
 **Recomendação:** **Opção A (MinIO + `@aws-sdk/client-s3`)** — é a arquitetura literal já acordada em `software-arch.mermaid`, mantém o ambiente local totalmente contido em Docker conforme a convenção de rede do projeto, e sua API compatível com S3 é reaproveitada diretamente pelo TD-03 (upload) e TD-06 (streaming/download) em vez de inventar lógica própria de range-serving e retomada de upload. Os buckets são **privados** por padrão (sem política de leitura anônima) — toda leitura/escrita passa pelo cliente autenticado da API ou por uma URL pré-assinada com prazo curto (TD-06); a política de visibilidade pública/unlisted é escopo da Fase 04 e se sobrepõe a isso sem mudar esse padrão. **CORS precisa estar habilitado no bucket** (`AllowedOrigins`: a origem do frontend, `AllowedMethods`: `GET`, `AllowedHeaders`: `Range`) — sem isso, as requisições de range feitas diretamente pelo navegador ao endpoint público no TD-06 (Opção B) são bloqueadas pelo próprio navegador, mesmo com a URL pré-assinada válida.
 
-**Decisão:** _[pendente]_
+**Decisão:** A (MinIO + `@aws-sdk/client-s3`)
 
 ---
 
@@ -77,7 +77,7 @@ _Subprojetos no escopo:_
 
 **Recomendação:** **Opção A (BullMQ + Redis)** — jobs de transcodificação de vídeo são longos e consomem muita CPU; a detecção de jobs travados e a semântica de backoff/retry do BullMQ foram construídas exatamente para esse cenário de "worker cai no meio do job", o que pesa mais aqui do que evitar mais um serviço no Compose. A dependência do Redis é uma adição pontual ao `nestjs-project/compose.yaml`, não um custo recorrente.
 
-**Decisão:** _[pendente]_
+**Decisão:** A (BullMQ + Redis, worker em processo separado)
 
 ---
 
@@ -112,7 +112,7 @@ _Subprojetos no escopo:_
 
 **Recomendação:** **Opção A (`tus` via `@tus/s3-store`)** — é a única opção que satisfaz as duas metades do texto da capacidade ("até 10GB" e "sem impacto na performance") sem implementar a retomada na unha, e se encaixa diretamente no armazenamento compatível com S3 já escolhido no TD-01.
 
-**Decisão:** _[pendente]_
+**Decisão:** A (`tus` via `@tus/server` + `@tus/s3-store`)
 
 ---
 
@@ -142,7 +142,7 @@ _Subprojetos no escopo:_
 
 **Recomendação:** **Opção A** — pré-criar a linha é o que o texto da capacidade literalmente pede, custa uma ida e volta extra que é invisível para o usuário final (o frontend faz as duas chamadas antes de mostrar a barra de progresso do upload), e permite que a convenção já estabelecida de PK em UUID sirva também como identificador de URL única, sem nenhum mecanismo novo.
 
-**Decisão:** _[pendente]_
+**Decisão:** A (pré-criar a linha de rascunho de forma síncrona, depois abrir a sessão de upload contra ela)
 
 ---
 
@@ -175,7 +175,7 @@ _Subprojetos no escopo:_
 
 **Nota de implementação (não é um eixo estratégico separado):** dentro da Opção A, o worker ainda precisa de alguma forma de invocar as duas operações do FFmpeg contra o arquivo temporário local. O `fluent-ffmpeg` (combinado com `@ffmpeg-installer/ffmpeg` / `@ffprobe-installer/ffprobe` para binários estáticos com versão fixada, evitando um passo `apt-get install ffmpeg` da distro cuja versão varia conforme a tag da imagem base) é um wrapper de conveniência fino e consolidado sobre os dois comandos — isso é uma escolha de ergonomia de biblioteca, não uma decisão com trade-offs arquiteturais concorrentes, por isso é registrada aqui como a convenção adotada, em vez de ter sua própria tabela de Opções.
 
-**Decisão:** _[pendente]_
+**Decisão:** A (baixar o objeto completo para o disco efêmero local do worker, depois processar o arquivo local)
 
 ---
 
@@ -206,7 +206,7 @@ _Subprojetos no escopo:_
 
 **Recomendação:** **Opção B (redirecionamento por URL pré-assinada)** — o MinIO/S3 já implementa corretamente o tratamento de `Range`/`Accept-Ranges`, então fazer proxy através da API (Opção A) só adicionaria latência e carga sem adicionar capacidade; a Opção C resolve um problema que esta fase não pede. As URLs pré-assinadas reaproveitam o mesmo cliente S3 escolhido no TD-01, sem biblioteca nova.
 
-**Decisão:** _[pendente]_
+**Decisão:** B (redirecionamento por URL pré-assinada)
 
 ---
 
@@ -214,9 +214,9 @@ _Subprojetos no escopo:_
 
 | ID | Escopo | Decisão | Recomendação | Escolha |
 |----|-------|----------|---------------|--------|
-| TD-01 | Backend | Backend de Armazenamento de Objetos & SDK Cliente | MinIO + `@aws-sdk/client-s3` | _[pendente]_ |
-| TD-02 | Backend | Fila de Jobs em Segundo Plano & Topologia do Worker | BullMQ + Redis, worker em processo separado | _[pendente]_ |
-| TD-03 | Backend | Protocolo de Upload de Arquivos Grandes (10GB) | `tus` via `@tus/server` + `@tus/s3-store` | _[pendente]_ |
-| TD-04 | Backend | Pré-cadastro de Rascunho, Ciclo de Vida & Estratégia de Identificador | Pré-criar linha de rascunho (UUID) antes do upload começar; máquina de estados `draft→processing→ready/failed` | _[pendente]_ |
-| TD-05 | Backend | Processamento de Vídeo — Estratégia de Acesso a Bytes pelo Worker & Ferramental | Baixar para disco efêmero local do worker + `fluent-ffmpeg` | _[pendente]_ |
-| TD-06 | Backend | Estratégia de Entrega de Streaming & Download de Vídeo | Redirecionamento por URL pré-assinada (cliente↔armazenamento direto) | _[pendente]_ |
+| TD-01 | Backend | Backend de Armazenamento de Objetos & SDK Cliente | MinIO + `@aws-sdk/client-s3` | A |
+| TD-02 | Backend | Fila de Jobs em Segundo Plano & Topologia do Worker | BullMQ + Redis, worker em processo separado | A |
+| TD-03 | Backend | Protocolo de Upload de Arquivos Grandes (10GB) | `tus` via `@tus/server` + `@tus/s3-store` | A |
+| TD-04 | Backend | Pré-cadastro de Rascunho, Ciclo de Vida & Estratégia de Identificador | Pré-criar linha de rascunho (UUID) antes do upload começar; máquina de estados `draft→processing→ready/failed` | A |
+| TD-05 | Backend | Processamento de Vídeo — Estratégia de Acesso a Bytes pelo Worker & Ferramental | Baixar para disco efêmero local do worker + `fluent-ffmpeg` | A |
+| TD-06 | Backend | Estratégia de Entrega de Streaming & Download de Vídeo | Redirecionamento por URL pré-assinada (cliente↔armazenamento direto) | B |

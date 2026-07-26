@@ -4,7 +4,7 @@ name: phase-03-videos
 sources_mtime:
   docs/project-plan.md: "2026-07-14T19:57:16-03:00"
   docs/decisions/technical-decisions-phase-03-videos.md: "2026-07-26T19:07:44-03:00"
-  docs/phases/phase-03-videos/library-refs.md: "2026-07-26T19:10:33-03:00"
+  docs/phases/phase-03-videos/library-refs.md: "2026-07-26T19:46:27-03:00"
   docs/phases/phase-01-configuracao-base/context.md: "2026-07-14T19:57:16-03:00"
   docs/phases/phase-02-auth/context.md: "2026-07-14T19:57:16-03:00"
   docs/phases/phase-02-auth-frontend/context.md: "2026-07-14T19:57:16-03:00"

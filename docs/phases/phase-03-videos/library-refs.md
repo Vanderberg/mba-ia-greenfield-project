@@ -48,7 +48,7 @@ sources_mtime:
 
 Distilled Context7 docs for the libraries decided in this phase's TDs, scoped to how each TD's Recommendation actually uses them. Full library docs live upstream (Context7 / official repos) — this file is a project-scoped cheat sheet, not a mirror.
 
-## @aws-sdk/client-s3
+### @aws-sdk/client-s3
 
 _Used by: TD-01 (storage client), TD-03 (multipart target for `@tus/s3-store`), TD-06 (as the client behind presigned URLs)._
 
@@ -64,7 +64,7 @@ _Used by: TD-01 (storage client), TD-03 (multipart target for `@tus/s3-store`), 
 - Full multipart flow (only needed if NOT delegating to `@tus/s3-store`, e.g. for manual bucket/lifecycle setup): `CreateMultipartUploadCommand` → `UploadPartCommand` (per part, collect `ETag`) → `CompleteMultipartUploadCommand` (with the `Parts` list) → `AbortMultipartUploadCommand` on failure.
 - `@aws-sdk/lib-storage`'s `Upload` class is a higher-level wrapper around the same 4 commands with a configurable `partSize` (min 5MB) and `queueSize` (concurrency) — useful if any code path uploads to S3 outside the `tus` flow (e.g., a future direct-download re-encode).
 
-## @aws-sdk/s3-request-presigner
+### @aws-sdk/s3-request-presigner
 
 _Used by: TD-06 (streaming + download delivery)._
 
@@ -73,7 +73,7 @@ _Used by: TD-06 (streaming + download delivery)._
 - Download: sign a `GetObjectCommand` with `ResponseContentDisposition: 'attachment; filename="..."'` — same mechanism, different one param, exactly as TD-06's Recommendation describes.
 - Short expiry (e.g., 5–15 min) is the access-control mechanism for this phase (no per-byte auth) — mint a fresh URL per request, never cache/reuse across users.
 
-## bullmq + @nestjs/bullmq
+### bullmq
 
 _Used by: TD-02 (queue + worker topology)._
 
@@ -84,14 +84,18 @@ _Used by: TD-02 (queue + worker topology)._
 - **Dead-letter (per TD-02):** configure `attempts` + `backoff` on the job; listen to the worker's `failed` event to flip the `Video.status` to `failed` once attempts are exhausted.
 - Sandboxed/separate-process workers (extra isolation beyond just "a different container") are configured by passing a file path instead of a class to `new Worker(queueName, processorFile, { connection })` — evaluate only if per-job process isolation (crash containment) is needed beyond container-level separation.
 
-## ioredis
+### @nestjs/bullmq
+
+_Used by: TD-02 — see `### bullmq` above; `@nestjs/bullmq` is the NestJS module wrapper (`BullModule.registerQueue`, `@Processor`, `WorkerHost`) installed alongside `bullmq` itself (`npm install --save @nestjs/bullmq bullmq`)._
+
+### ioredis
 
 _Used by: TD-02 (BullMQ's required Redis connection)._
 
 - BullMQ uses `ioredis` internally for its Redis connection; connection config is passed as BullMQ's `connection` option (`{ host: 'redis', port: 6379 }` — service name `redis`, per the project's Docker networking convention).
 - `maxRetriesPerRequest` must be set to `null` when the connection is used by BullMQ (BullMQ's own docs require this — command queueing on connection loss must be unbounded, not ioredis's default of 20 retries) — confirm this exact setting when the compose service + connection options are implemented.
 
-## @tus/server + @tus/s3-store
+### @tus/server
 
 _Used by: TD-03 (upload protocol), TD-04 (draft pre-registration hooks), TD-01 (CORS/private-bucket premise)._
 
@@ -101,7 +105,11 @@ _Used by: TD-03 (upload protocol), TD-04 (draft pre-registration hooks), TD-01 (
 - **Enqueue trigger (per TD-02's Context):** `onUploadFinish: async (req, upload) => { await videoQueue.add('process-video', { videoId }, { jobId: videoId }) }` — this hook is the exact wiring point between TD-03 (upload) and TD-02 (queue).
 - **Incomplete-upload cleanup (per TD-03's Context):** configure an S3 lifecycle rule to expire incomplete multipart uploads after N days — bucket-side policy, not `tus` config.
 
-## fluent-ffmpeg (+ @ffmpeg-installer/ffmpeg, @ffprobe-installer/ffprobe)
+### @tus/s3-store
+
+_Used by: TD-03 — see `### @tus/server` above; `@tus/s3-store` is the storage adapter passed as the `tus` server's `datastore`, mapping chunks directly onto S3/MinIO multipart uploads (`partSize`, `maxConcurrentPartUploads` tunables)._
+
+### fluent-ffmpeg
 
 _Used by: TD-05 (worker byte-access + processing tooling)._
 
@@ -117,3 +125,11 @@ _Used by: TD-05 (worker byte-access + processing tooling)._
 - Metadata extraction (duration + format), per TD-05's Option A (local temp file, random access needed for the trailing `moov` atom): `ffmpeg.ffprobe(localFilePath, (err, data) => { data.format.duration, data.streams... })`.
 - Thumbnail extraction, per TD-05 + the "Geração automática de thumbnail" capability: `ffmpeg(localFilePath).screenshots({ timestamps: ['50%'], filename: 'thumb.png', folder: tmpDir, size: '?x480' })` — `screenshots()` needs a real seekable file, which is exactly why TD-05 rejected the streaming/pipe options.
 - Both calls run against the **worker-local temp file** downloaded in TD-05's Option A — delete it in a `finally` block regardless of ffprobe/ffmpeg success or failure (per TD-05's cleanup requirement).
+
+### @ffmpeg-installer/ffmpeg
+
+_Used by: TD-05 — see `### fluent-ffmpeg` above. No dedicated Context7 docs (thin binary-distribution wrapper); its entire public API is the exported `path` string wired via `ffmpeg.setFfmpegPath(ffmpegInstaller.path)`._
+
+### @ffprobe-installer/ffprobe
+
+_Used by: TD-05 — see `### fluent-ffmpeg` above. No dedicated Context7 docs (thin binary-distribution wrapper); its entire public API is the exported `path` string wired via `ffmpeg.setFfprobePath(ffprobeInstaller.path)`._

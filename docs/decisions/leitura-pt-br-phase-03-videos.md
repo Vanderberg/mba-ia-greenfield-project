@@ -1,4 +1,4 @@
-> **Nota:** esta é uma tradução de leitura do arquivo canônico [`technical-decisions-phase-03-upload-processing.md`](./technical-decisions-phase-03-upload-processing.md). Use este arquivo para **entender e decidir**; depois, preencha os campos `**Decision:**` **no arquivo original em inglês**, que é o que o pipeline (`/plan-context`, `/plan-validate`, `/plan-resolve`) realmente lê. Este arquivo `.pt-br.md` não é consumido pelo pipeline e não deve ser editado como fonte de verdade.
+> **Nota:** esta é uma tradução de leitura do arquivo canônico [`technical-decisions-phase-03-videos.md`](./technical-decisions-phase-03-videos.md). Use este arquivo para **entender e decidir**; depois, preencha os campos `**Decision:**` **no arquivo original em inglês**, que é o que o pipeline (`/plan-context`, `/plan-validate`, `/plan-resolve`) realmente lê. Este arquivo `.pt-br.md` não é consumido pelo pipeline e não deve ser editado como fonte de verdade.
 
 ---
 scope_type: phase

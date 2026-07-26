@@ -1,16 +1,16 @@
 ---
 kind: phase
-name: phase-03-upload-processing
+name: phase-03-videos
 sources_mtime:
   docs/project-plan.md: "2026-07-14T19:57:16-03:00"
-  docs/decisions/technical-decisions-phase-03-upload-processing.md: "2026-07-26T14:33:34-03:00"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-07-26T14:33:34-03:00"
   docs/phases/phase-01-configuracao-base/context.md: "2026-07-14T19:57:16-03:00"
   docs/phases/phase-02-auth/context.md: "2026-07-14T19:57:16-03:00"
   docs/phases/phase-02-auth-frontend/context.md: "2026-07-14T19:57:16-03:00"
   .claude/skills/testing-guide-nestjs-project/SKILL.md: "2026-07-14T19:57:16-03:00"
 ---
 
-# phase-03-upload-processing — Context
+# phase-03-videos — Context
 
 ## Scope
 
@@ -47,59 +47,59 @@ sources_mtime:
 
 | Ref | Source | Scope | Topic | Status | Decision | Libraries |
 |-----|--------|-------|-------|--------|----------|-----------|
-| phase-03-upload-processing/TD-01 | phase | Backend | Object Storage Backend & Client SDK | decided | A (MinIO + `@aws-sdk/client-s3`) | — |
-| phase-03-upload-processing/TD-02 | phase | Backend | Background Job Queue & Worker Topology | decided | A (BullMQ + Redis, separate worker) | — |
-| phase-03-upload-processing/TD-03 | phase | Backend | Large File Upload Protocol (up to 10GB) | decided | A (`tus` via `@tus/server` + `@tus/s3-store`) | — |
-| phase-03-upload-processing/TD-04 | phase | Backend | Video Draft Pre-registration, Status Lifecycle & Identifier Strategy | decided | A (pre-create draft row, then open upload session) | — |
-| phase-03-upload-processing/TD-05 | phase | Backend | Video Processing — Worker Byte-Access Strategy & Tooling | decided | A (download to worker-local ephemeral disk) | — |
-| phase-03-upload-processing/TD-06 | phase | Backend | Video Streaming & Download Delivery Strategy | decided | B (presigned URL redirect) | — |
+| phase-03-videos/TD-01 | phase | Backend | Object Storage Backend & Client SDK | decided | A (MinIO + `@aws-sdk/client-s3`) | — |
+| phase-03-videos/TD-02 | phase | Backend | Background Job Queue & Worker Topology | decided | A (BullMQ + Redis, separate worker) | — |
+| phase-03-videos/TD-03 | phase | Backend | Large File Upload Protocol (up to 10GB) | decided | A (`tus` via `@tus/server` + `@tus/s3-store`) | — |
+| phase-03-videos/TD-04 | phase | Backend | Video Draft Pre-registration, Status Lifecycle & Identifier Strategy | decided | A (pre-create draft row, then open upload session) | — |
+| phase-03-videos/TD-05 | phase | Backend | Video Processing — Worker Byte-Access Strategy & Tooling | decided | A (download to worker-local ephemeral disk) | — |
+| phase-03-videos/TD-06 | phase | Backend | Video Streaming & Download Delivery Strategy | decided | B (presigned URL redirect) | — |
 
 _Source files:_
 
-- phase-03-upload-processing — `docs/decisions/technical-decisions-phase-03-upload-processing.md` (scope_type: phase, related_phases: [3])
+- phase-03-videos — `docs/decisions/technical-decisions-phase-03-videos.md` (scope_type: phase, related_phases: [3])
 
 ## Capability Coverage
 
 | Capability (from project-plan.md) | Covered by |
 |-----------------------------------|------------|
-| Serviço de armazenamento de arquivos (vídeos e thumbnails) | phase-03-upload-processing/TD-01 |
-| Serviço de processamento em segundo plano (filas) | phase-03-upload-processing/TD-02 |
-| Upload de vídeos com suporte a arquivos de até 10GB sem impacto na performance | phase-03-upload-processing/TD-03 |
-| Pré-cadastro automático do vídeo como rascunho ao iniciar o upload | phase-03-upload-processing/TD-04 |
-| Processamento automático do vídeo após upload (extração de duração e metadados) | phase-03-upload-processing/TD-05 |
-| Geração automática de thumbnail a partir de um frame do vídeo | phase-03-upload-processing/TD-05 |
-| URL única por vídeo, sem conflito com outros vídeos | phase-03-upload-processing/TD-04 |
-| Reprodução via streaming (sem necessidade de download completo) | phase-03-upload-processing/TD-06 |
-| Download do vídeo pelo usuário | phase-03-upload-processing/TD-06 |
+| Serviço de armazenamento de arquivos (vídeos e thumbnails) | phase-03-videos/TD-01 |
+| Serviço de processamento em segundo plano (filas) | phase-03-videos/TD-02 |
+| Upload de vídeos com suporte a arquivos de até 10GB sem impacto na performance | phase-03-videos/TD-03 |
+| Pré-cadastro automático do vídeo como rascunho ao iniciar o upload | phase-03-videos/TD-04 |
+| Processamento automático do vídeo após upload (extração de duração e metadados) | phase-03-videos/TD-05 |
+| Geração automática de thumbnail a partir de um frame do vídeo | phase-03-videos/TD-05 |
+| URL única por vídeo, sem conflito com outros vídeos | phase-03-videos/TD-04 |
+| Reprodução via streaming (sem necessidade de download completo) | phase-03-videos/TD-06 |
+| Download do vídeo pelo usuário | phase-03-videos/TD-06 |
 
 ## Decisions Detail
 
-### phase-03-upload-processing/TD-01
+### phase-03-videos/TD-01
 
 **Recommendation:** it is the literal architecture already agreed in `software-arch.mermaid`, keeps local dev fully Docker-contained per the project's networking convention, and its S3-compatible API is reused directly by TD-03 (upload) and TD-06 (streaming/download) instead of inventing bespoke range-serving and resumability logic. Buckets default to **private** (no anonymous read policy) — every read/write goes through the API's credentialed client or a time-boxed presigned URL (TD-06); public/unlisted visibility policy is Phase 04 scope and layers on top without changing this default. **CORS must be enabled on the bucket** (`AllowedOrigins`: the FE's origin, `AllowedMethods`: `GET`, `AllowedHeaders`: `Range`) — without it, the browser's direct range requests to the public endpoint in TD-06 Option B are blocked by the browser itself, regardless of the presigned URL being valid.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-02
+### phase-03-videos/TD-02
 
 **Recommendation:** video transcoding jobs are long-running and CPU-bound; BullMQ's stalled-job detection and backoff/retry semantics are specifically built for exactly this "worker crashes mid-job" failure mode, which matters more here than avoiding one extra Compose service. The Redis dependency is a one-time addition to `nestjs-project/compose.yaml`, not a recurring cost.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-03
+### phase-03-videos/TD-03
 
 **Recommendation:** it is the only option that satisfies both halves of the capability text ("até 10GB" and "sem impacto na performance") without hand-rolling resumability, and it plugs directly into the S3-compatible storage already chosen in TD-01.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-04
+### phase-03-videos/TD-04
 
 **Recommendation:** pre-creating the row is what the capability text literally asks for, costs one extra round-trip that is invisible to the end user (the FE issues both calls before showing the upload progress bar), and lets the already-established UUID PK convention double as the unique-URL identifier with no new mechanism.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-05
+### phase-03-videos/TD-05
 
 **Recommendation:** `ffprobe`/`ffmpeg` need genuine random access for the two operations this phase requires, and that need is exactly what defeats Option B and makes Option C disproportionately expensive to build. The disk-cost con is bounded and manageable: cap worker concurrency to fit `(concurrency × 10GB)` within the worker container's allocated volume, and guarantee cleanup with a `finally`-based delete plus a periodic sweep of the temp directory as a backstop against any leaked file from a hard crash.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-06
+### phase-03-videos/TD-06
 
 **Recommendation:** MinIO/S3 already implements correct `Range`/`Accept-Ranges` handling, so proxying through the API (Option A) would only add latency and load without adding capability; Option C solves a problem this phase does not ask for. Presigned URLs reuse the exact S3 client chosen in TD-01 with no new library.
 **Libraries:** —

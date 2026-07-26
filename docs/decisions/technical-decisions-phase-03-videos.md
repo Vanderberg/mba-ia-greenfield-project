@@ -45,6 +45,7 @@ _Subprojects in scope:_
 **Recommendation:** **Option A (MinIO + `@aws-sdk/client-s3`)** — it is the literal architecture already agreed in `software-arch.mermaid`, keeps local dev fully Docker-contained per the project's networking convention, and its S3-compatible API is reused directly by TD-03 (upload) and TD-06 (streaming/download) instead of inventing bespoke range-serving and resumability logic. Buckets default to **private** (no anonymous read policy) — every read/write goes through the API's credentialed client or a time-boxed presigned URL (TD-06); public/unlisted visibility policy is Phase 04 scope and layers on top without changing this default. **CORS must be enabled on the bucket** (`AllowedOrigins`: the FE's origin, `AllowedMethods`: `GET`, `AllowedHeaders`: `Range`) — without it, the browser's direct range requests to the public endpoint in TD-06 Option B are blocked by the browser itself, regardless of the presigned URL being valid.
 
 **Decision:** A (MinIO + `@aws-sdk/client-s3`)
+**Libraries:** @aws-sdk/client-s3
 
 ---
 
@@ -77,6 +78,7 @@ _Subprojects in scope:_
 **Recommendation:** **Option A (BullMQ + Redis)** — video transcoding jobs are long-running and CPU-bound; BullMQ's stalled-job detection and backoff/retry semantics are specifically built for exactly this "worker crashes mid-job" failure mode, which matters more here than avoiding one extra Compose service. The Redis dependency is a one-time addition to `nestjs-project/compose.yaml`, not a recurring cost.
 
 **Decision:** A (BullMQ + Redis, separate worker process)
+**Libraries:** bullmq, @nestjs/bullmq, ioredis
 
 ---
 
@@ -112,6 +114,7 @@ _Subprojects in scope:_
 **Recommendation:** **Option A (`tus` via `@tus/s3-store`)** — it is the only option that satisfies both halves of the capability text ("até 10GB" and "sem impacto na performance") without hand-rolling resumability, and it plugs directly into the S3-compatible storage already chosen in TD-01.
 
 **Decision:** A (`tus` via `@tus/server` + `@tus/s3-store`)
+**Libraries:** @tus/server, @tus/s3-store
 
 ---
 
@@ -175,6 +178,7 @@ _Subprojects in scope:_
 **Implementation note (not a separate strategic axis):** within Option A, the worker still needs some way to invoke the two FFmpeg operations against the local temp file. `fluent-ffmpeg` (paired with `@ffmpeg-installer/ffmpeg` / `@ffprobe-installer/ffprobe` for version-pinned static binaries, avoiding a distro `apt-get install ffmpeg` step with a version that drifts across base image tags) is a thin, well-established convenience wrapper over both commands — this is a library-ergonomics choice, not a decision with competing architectural trade-offs, so it is recorded here as the adopted convention rather than as its own Options table.
 
 **Decision:** A (download the full object to worker-local ephemeral disk, then process the local file)
+**Libraries:** fluent-ffmpeg, @ffmpeg-installer/ffmpeg, @ffprobe-installer/ffprobe
 
 ---
 
@@ -206,6 +210,7 @@ _Subprojects in scope:_
 **Recommendation:** **Option B (presigned URL redirect)** — MinIO/S3 already implements correct `Range`/`Accept-Ranges` handling, so proxying through the API (Option A) would only add latency and load without adding capability; Option C solves a problem this phase does not ask for. Presigned URLs reuse the exact S3 client chosen in TD-01 with no new library.
 
 **Decision:** B (presigned URL redirect)
+**Libraries:** @aws-sdk/s3-request-presigner
 
 ---
 

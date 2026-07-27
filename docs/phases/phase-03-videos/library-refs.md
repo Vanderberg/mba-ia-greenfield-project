@@ -21,11 +21,11 @@ libs:
     context7_id: "/redis/ioredis"
     fetched_at: "2026-07-26T19:09:55-03:00"
   "@tus/server":
-    version: "^1.x"
+    version: "^2.x"
     context7_id: "/tus/tus-node-server"
     fetched_at: "2026-07-26T19:09:55-03:00"
   "@tus/s3-store":
-    version: "^1.x"
+    version: "^2.x"
     context7_id: "/tus/tus-node-server"
     fetched_at: "2026-07-26T19:09:55-03:00"
   "fluent-ffmpeg":

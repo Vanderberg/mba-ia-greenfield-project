@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 3/9 completed
+**SIs:** 4/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -36,9 +36,14 @@
   - `objectExists()` foi ajustado para só tratar `404` como "não existe"; qualquer outro erro é relançado (não engolir erros, per `nestjs-services.md`).
 
 ### SI-03.4 — Endpoints de Pré-cadastro do Vídeo (POST /videos, GET /videos/:id)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 13 unit/module (`videos.service.spec.ts`: 7, `optional-jwt-auth.guard.spec.ts`: 4, `videos.module.spec.ts`: 1) + 6 E2E (`videos-draft.e2e-spec.ts`) — suíte completa: 167 unit/integration + 58 E2E
+- **Observations:**
+  - Criado `OptionalJwtAuthGuard` (novo — não estava no plano original) para viabilizar a regra de visibilidade de `GET /videos/:id` (owner vê qualquer status, não-owner só vê `ready`): combina `@Public()` (bypassa o guard JWT global obrigatório) com esse guard leve, que popula `request.user` quando um token válido existe mas nunca rejeita a requisição — segue a convenção do projeto ("global guard fica global") sem duplicar a lógica do `JwtAuthGuard`.
+  - Adicionado `ChannelsService.findByUserId` (método novo, não existia) — necessário para resolver o canal do usuário autenticado antes de criar o rascunho.
+  - `VideosService.createDraftForUser` trata "usuário sem canal" como erro genérico (não é um `DomainException` catalogado) — invariante que nunca deveria ocorrer na prática, já que todo usuário registrado ganha um canal automaticamente na Fase 02.
+  - Adicionadas ao catálogo de exceções (`domain.exception.ts`) as exceptions de todo o Error Catalog da fase (`VideoNotFound`, `VideoNotVisible`, `VideoNotReady`, `UploadMetadataInvalid`, `UploadForbidden`) de uma vez, já que vivem no mesmo arquivo por convenção do projeto — só as duas primeiras são usadas nesta SI; as demais serão consumidas nos SIs 03.5/03.7.
+  - `thumbnailUrl` em `GET /videos/:id` só é calculado (chamada a `StorageService.getPresignedUrl`) quando `status: ready` e `thumbnail_key` existe — nesta SI sempre retorna `null`, pois nenhum vídeo chega a `ready` ainda (isso só acontece a partir do worker, SI-03.6).
 
 ### SI-03.5 — Endpoint de Upload Resumível (tus)
 - **Status:** pending

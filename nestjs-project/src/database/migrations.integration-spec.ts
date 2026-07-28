@@ -35,12 +35,12 @@ describe('Database migrations (integration)', () => {
 
     await dataSource.initialize();
 
-    await Promise.all([
-      ...MANAGED_TABLES.map((table) =>
-        dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`),
-      ),
-      dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
-    ]);
+    // Sequential, not Promise.all: concurrent DROP TABLE ... CASCADE
+    // statements that share FK dependencies (videos -> channels) can lock
+    // each other's tables in conflicting order and deadlock.
+    for (const table of [...MANAGED_TABLES, 'migrations']) {
+      await dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`);
+    }
     // DROP TABLE ... CASCADE does not drop dependent custom types — the enum
     // survives across runs and CreateAuthTokens' CREATE TYPE then collides.
     await dataSource.query(

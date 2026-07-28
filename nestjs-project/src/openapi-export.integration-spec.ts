@@ -14,7 +14,7 @@ describe('exportSpec (integration)', () => {
       string,
       unknown
     >;
-  }, 30_000);
+  }, 90_000);
 
   it('exports a valid OpenAPI 3.x document', () => {
     expect(document.openapi).toMatch(/^3\./);

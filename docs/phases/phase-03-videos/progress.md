@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 2/9 completed
+**SIs:** 3/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -24,9 +24,16 @@
   - `env.validation.integration-spec.ts` precisou do fixture `requiredEnv` atualizado com `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (agora obrigatórios no schema Joi).
 
 ### SI-03.3 — Módulos de Storage e Fila (Cliente S3, URLs Pré-assinadas, Producer BullMQ)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 7 passing (`storage.service.integration-spec.ts`: 4, `storage.module.spec.ts`: 1, `queue.module.spec.ts`: 1) + suíte completa 155/155
+- **Observations:**
+  - MinIO não implementa a API S3 `PutBucketCors` (bucket-level CORS) — retorna `NotImplemented`. CORS foi movido para o nível de servidor via env var `MINIO_API_CORS_ALLOW_ORIGIN` no `compose.yaml`, em vez de uma chamada `PutBucketCorsCommand` no bootstrap.
+  - MinIO (RELEASE.2025-09-07) descarta silenciosamente o elemento `AbortIncompleteMultipartUpload` de qualquer `PutBucketLifecycleConfiguration` — confirmado tanto via AWS SDK quanto via `mc ilm import` nativo do MinIO, e relendo a regra salva (a ação simplesmente não persiste, sem erro). É uma limitação real desta versão do MinIO, não um bug do cliente. A regra de limpeza de uploads incompletos (TD-03) **não foi configurada** — documentado no código como gap conhecido, a revisitar se o MinIO for atualizado.
+  - AWS SDK v3 mais recente (`requestChecksumCalculation` default) adiciona headers de checksum que o MinIO rejeita com `NotImplemented` em operações de bucket — corrigido com `requestChecksumCalculation: 'WHEN_REQUIRED'` no client.
+  - Para o teste de integração do `StorageService` rodar de dentro do container `nestjs-api` (que não alcança `localhost:9000`, o endpoint "público" real pensado para navegadores), o teste usa o hostname `minio` como stand-in de "endpoint público" — a mecânica de assinatura/entrega testada é idêntica, só muda qual host é alcançável a partir de quem faz a chamada.
+  - `migrations.integration-spec.ts` tinha um `Promise.all` de `DROP TABLE ... CASCADE` concorrente que passou a deadlockar depois que `videos` (com FK para `channels`) entrou no conjunto gerenciado — trocado para drops sequenciais.
+  - `openapi-export.integration-spec.ts` precisou de timeout maior (30s → 90s): o boot completo da `AppModule` agora inclui a conexão do BullMQ com o Redis, que soma tempo real ao bootstrap.
+  - `objectExists()` foi ajustado para só tratar `404` como "não existe"; qualquer outro erro é relançado (não engolir erros, per `nestjs-services.md`).
 
 ### SI-03.4 — Endpoints de Pré-cadastro do Vídeo (POST /videos, GET /videos/:id)
 - **Status:** pending

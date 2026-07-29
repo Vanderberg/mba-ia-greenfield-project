@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Redirect,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -115,5 +116,67 @@ export class VideosController {
       durationSeconds: video.duration_seconds,
       thumbnailUrl,
     };
+  }
+
+  @Public()
+  @Get(':id/stream')
+  @Redirect()
+  @ApiOperation({
+    summary: 'Stream a ready video',
+    description:
+      'Redirects to a short-lived presigned URL that serves the video with Range support, without proxying bytes through the API.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to a presigned streaming URL',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready (draft, processing, or failed)',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async stream(
+    @Param('id') id: string,
+  ): Promise<{ url: string; statusCode: number }> {
+    const video = await this.videosService.findReadyById(id);
+    const url = await this.storageService.getPresignedUrl(video.storage_key);
+    return { url, statusCode: HttpStatus.FOUND };
+  }
+
+  @Public()
+  @Get(':id/download')
+  @Redirect()
+  @ApiOperation({
+    summary: 'Download a ready video',
+    description:
+      'Redirects to a short-lived presigned URL with Content-Disposition: attachment, without proxying bytes through the API.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to a presigned download URL',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready (draft, processing, or failed)',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async download(
+    @Param('id') id: string,
+  ): Promise<{ url: string; statusCode: number }> {
+    const video = await this.videosService.findReadyById(id);
+    const url = await this.storageService.getPresignedUrl(video.storage_key, {
+      download: true,
+    });
+    return { url, statusCode: HttpStatus.FOUND };
   }
 }

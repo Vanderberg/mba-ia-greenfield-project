@@ -7,6 +7,7 @@ import {
   UploadForbiddenException,
   UploadMetadataInvalidException,
   VideoNotFoundException,
+  VideoNotReadyException,
   VideoNotVisibleException,
 } from '../common/exceptions/domain.exception';
 import { Video } from './entities/video.entity';
@@ -107,6 +108,23 @@ export class VideosService {
     }
     if (video.channel.user_id !== userId) {
       throw new UploadForbiddenException();
+    }
+    return video;
+  }
+
+  /**
+   * Loads a video for delivery (stream/download), requiring only that it
+   * exists and is `status: 'ready'` — per the Authorization Matrix, these
+   * endpoints are open to any requester (anonymous included) once a video
+   * is ready; no ownership/visibility check applies here.
+   */
+  async findReadyById(id: string): Promise<Video> {
+    const video = await this.videoRepository.findOneBy({ id });
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    if (video.status !== 'ready') {
+      throw new VideoNotReadyException();
     }
     return video;
   }

@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 6/9 completed
+**SIs:** 7/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -71,9 +71,13 @@
   - Vídeo de teste sintetizado via `ffmpeg -f lavfi -i testsrc=...` diretamente no `beforeAll` do teste de integração (sem commitar um asset binário no repo).
 
 ### SI-03.7 — Endpoints de Streaming e Download
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 10 E2E (`videos-delivery.e2e-spec.ts`: redirecionamento 302 com `Range` real resultando em 206, `Content-Disposition: attachment`, 404/409 para inexistente/não pronto) — suíte completa: 170 unit/integration + 75 E2E
+- **Observations:**
+  - Endpoints totalmente públicos (per Authorization Matrix: anônimo/autenticado/dono têm o mesmo acesso) — sem `OptionalJwtAuthGuard`, sem checagem de posse; apenas `status: 'ready'` é validado, diferente de `GET /videos/:id` que tem regra de visibilidade por dono.
+  - Adicionado `VideosService.findReadyById` (novo — não existia): carrega por id, `404 VIDEO_NOT_FOUND` se inexistente, `409 VIDEO_NOT_READY` se `status !== 'ready'`. Não reaproveita `findVisibleById` porque as regras são diferentes (aquele é sobre visibilidade por dono, este é só sobre prontidão).
+  - Usado o padrão de redirect dinâmico do Nest (`@Redirect()` decorator + handler retornando `{url, statusCode}`) em vez de injetar `Response` e chamar `res.redirect()` manualmente — mantém o controller livre de acesso direto ao objeto de resposta do Express.
+  - Teste E2E precisou sobrescrever o provider `StorageService` (`overrideProvider(StorageService).useValue(...)`) trocando `publicEndpoint` por `internalEndpoint` — a mesma ressalva já documentada em `storage.service.integration-spec.ts`: a URL pré-assinada é gerada contra `S3_PUBLIC_ENDPOINT` (`http://localhost:9000`), alcançável de um browser no host mas não do processo de teste, que roda dentro do container `nestjs-api` (sibling do `minio`, não o host).
 
 ### SI-03.8 — Job Agendado de Limpeza de Rascunhos Órfãos
 - **Status:** pending

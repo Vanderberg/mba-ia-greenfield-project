@@ -7,9 +7,14 @@ import databaseConfig from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
 import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
-import { PROCESS_VIDEO_QUEUE } from '../queue/queue.constants';
+import {
+  DRAFT_CLEANUP_QUEUE,
+  PROCESS_VIDEO_QUEUE,
+} from '../queue/queue.constants';
 import { StorageModule } from '../storage/storage.module';
 import { Video } from '../videos/entities/video.entity';
+import { DraftCleanupProcessor } from './draft-cleanup.processor';
+import { DraftCleanupScheduler } from './draft-cleanup.scheduler';
 import { VideoProcessor } from './video.processor';
 
 @Module({
@@ -47,8 +52,9 @@ import { VideoProcessor } from './video.processor';
       }),
     }),
     BullModule.registerQueue({ name: PROCESS_VIDEO_QUEUE }),
+    BullModule.registerQueue({ name: DRAFT_CLEANUP_QUEUE }),
     StorageModule,
   ],
-  providers: [VideoProcessor],
+  providers: [VideoProcessor, DraftCleanupProcessor, DraftCleanupScheduler],
 })
 export class WorkerModule {}

@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 7/9 completed
+**SIs:** 8/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -80,9 +80,14 @@
   - Teste E2E precisou sobrescrever o provider `StorageService` (`overrideProvider(StorageService).useValue(...)`) trocando `publicEndpoint` por `internalEndpoint` — a mesma ressalva já documentada em `storage.service.integration-spec.ts`: a URL pré-assinada é gerada contra `S3_PUBLIC_ENDPOINT` (`http://localhost:9000`), alcançável de um browser no host mas não do processo de teste, que roda dentro do container `nestjs-api` (sibling do `minio`, não o host).
 
 ### SI-03.8 — Job Agendado de Limpeza de Rascunhos Órfãos
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 5 passing (`draft-cleanup.processor.integration-spec.ts`: rascunho >48h removido, rascunho <48h preservado, `processing`/`ready`/`failed` preservados independente da idade) — suíte completa: 175 unit/integration + 75 E2E
+- **Observations:**
+  - TD-04 fala em "reaproveitar a fila do TD-02, sem infra nova" — interpretado como "sem novo serviço de infra" (sem Redis adicional), não como literalmente a mesma queue BullMQ: um segundo `@Processor()` no mesmo nome de fila criaria um segundo `Worker` competindo pelos mesmos jobs sem diferenciar por tipo. Criada uma fila BullMQ separada (`draft-cleanup`, novo `DRAFT_CLEANUP_QUEUE` em `queue.constants.ts`) na mesma conexão Redis já existente — zero infraestrutura nova, apenas uma fila lógica a mais.
+  - Separação em dois artefatos por responsabilidade única: `DraftCleanupProcessor` (a lógica de limpeza — `DELETE` de `videos` com `status: 'draft'` e `created_at` além do TTL) e `DraftCleanupScheduler` (novo — só agenda o job repetível via `OnApplicationBootstrap`, injetando a `Queue`). O agendamento do job repetível não estava listado como um artefato de teste dedicado na SI — é configuração trivial de delegação (schedule via BullMQ `repeat: {every}`), coberta pela Feature Implementation Checklist como "não vale a pena testar" (single-path, sem branching).
+  - BullMQ deduplica definições de job repetível pela combinação (nome + opções de repeat) — reexecutar `queue.add(...)` a cada restart do worker não cria agendamentos duplicados, então nenhuma lógica extra de idempotência foi necessária no `DraftCleanupScheduler`.
+  - Teste de integração backdata `created_at` via `dataSource.query('UPDATE videos SET created_at = ...')` após o insert — `@CreateDateColumn()` do TypeORM não permite passar um valor customizado de forma confiável através de `repository.create()`/`.save()`.
+  - `DraftCleanupProcessor` é testado via instanciação direta (`new DraftCleanupProcessor(videoRepository)`) com um `DataSource` de teste puro (mesmo padrão de `video.entity.integration-spec.ts`), sem subir o `WorkerModule`/BullMQ completo — a lógica testável é a query de limpeza, não o mecanismo de fila em si (já coberto indiretamente por `video.processor.integration-spec.ts` no SI-03.6).
 
 ### SI-03.9 — Suíte E2E do Fluxo Completo de Upload, Processamento e Entrega
 - **Status:** pending

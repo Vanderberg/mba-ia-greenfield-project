@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChannelsService } from '../channels/channels.service';
 import {
+  UploadForbiddenException,
+  UploadMetadataInvalidException,
   VideoNotFoundException,
   VideoNotVisibleException,
 } from '../common/exceptions/domain.exception';
@@ -64,5 +66,55 @@ export class VideosService {
     }
 
     return video;
+  }
+
+  /**
+   * Loads a video by id, requiring it to exist, be in `status: draft`, and
+   * be owned by `userId` — the gate for starting a NEW `tus` upload session
+   * against it (per `phase-03-videos/TD-04`'s Validation Rules).
+   */
+  async assertOwnedDraft(videoId: string, userId: string): Promise<Video> {
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      relations: ['channel'],
+    });
+    if (!video || video.status !== 'draft') {
+      throw new UploadMetadataInvalidException(
+        `videoId '${videoId}' does not reference an existing draft video`,
+      );
+    }
+    if (video.channel.user_id !== userId) {
+      throw new UploadForbiddenException();
+    }
+    return video;
+  }
+
+  /**
+   * Loads a video by id, requiring only that it exists and is owned by
+   * `userId` — the gate for CONTINUING an already-open `tus` upload session
+   * (`PATCH`/`HEAD`/`DELETE`), where the video may have already moved past
+   * `draft` if a previous chunk already finished the upload.
+   */
+  async assertOwnership(videoId: string, userId: string): Promise<Video> {
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      relations: ['channel'],
+    });
+    if (!video) {
+      throw new UploadMetadataInvalidException(
+        `No video found for id '${videoId}'`,
+      );
+    }
+    if (video.channel.user_id !== userId) {
+      throw new UploadForbiddenException();
+    }
+    return video;
+  }
+
+  async markProcessing(videoId: string): Promise<void> {
+    await this.videoRepository.update(
+      { id: videoId },
+      { status: 'processing' },
+    );
   }
 }

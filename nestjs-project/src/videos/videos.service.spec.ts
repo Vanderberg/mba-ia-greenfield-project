@@ -2,6 +2,7 @@ import {
   VideoNotFoundException,
   VideoNotVisibleException,
 } from '../common/exceptions/domain.exception';
+import { Video } from './entities/video.entity';
 import { VideosService } from './videos.service';
 
 describe('VideosService', () => {
@@ -15,8 +16,8 @@ describe('VideosService', () => {
 
   beforeEach(() => {
     videoRepository = {
-      create: jest.fn((v) => v),
-      save: jest.fn(async (v) => v),
+      create: jest.fn((v: Partial<Video>) => v),
+      save: jest.fn((v: Partial<Video>) => Promise.resolve(v)),
       findOne: jest.fn(),
     };
     channelsService = { findByUserId: jest.fn() };

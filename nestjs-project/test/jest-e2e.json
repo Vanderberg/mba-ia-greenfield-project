@@ -1,10 +1,15 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": ["js", "json", "ts", "mjs"],
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
+    "^.+\\.mjs$": [
+      "babel-jest",
+      { "configFile": "./babel.esm-interop.config.js" }
+    ],
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "transformIgnorePatterns": ["node_modules/(?!(@tus|srvx)/)"],
   "setupFiles": ["dotenv/config"]
 }

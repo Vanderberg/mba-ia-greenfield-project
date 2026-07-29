@@ -61,6 +61,7 @@
     "typeorm": "^0.3.28"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.29.7",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
@@ -83,6 +84,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tus-js-client": "^4.3.1",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
@@ -90,13 +92,21 @@
     "moduleFileExtensions": [
       "js",
       "json",
-      "ts"
+      "ts",
+      "mjs"
     ],
     "rootDir": "src",
     "testRegex": ".*\\.(spec|integration-spec)\\.ts$",
     "transform": {
+      "^.+\\.mjs$": [
+        "babel-jest",
+        { "configFile": "./babel.esm-interop.config.js" }
+      ],
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@tus|srvx)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

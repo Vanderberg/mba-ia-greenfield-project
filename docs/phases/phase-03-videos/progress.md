@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 4/9 completed
+**SIs:** 5/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -46,9 +46,16 @@
   - `thumbnailUrl` em `GET /videos/:id` só é calculado (chamada a `StorageService.getPresignedUrl`) quando `status: ready` e `thumbnail_key` existe — nesta SI sempre retorna `null`, pois nenhum vídeo chega a `ready` ainda (isso só acontece a partir do worker, SI-03.6).
 
 ### SI-03.5 — Endpoint de Upload Resumível (tus)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 1 module compile (`uploads.module.spec.ts`) + 7 E2E (`videos-upload.e2e-spec.ts`: 1 fluxo completo com resume após queda simulada; `videos-upload-auth.e2e-spec.ts`: 6 casos 401/400/403) — suíte completa: 168 unit/integration + 65 E2E
+- **Observations:**
+  - `@tus/server`, `@tus/s3-store`, `@tus/utils` e sua dependência `srvx` são pacotes ESM-only (`.mjs`) que o Jest (CJS) não consegue importar via `ts-jest` — precisou de `transformIgnorePatterns` liberando esses pacotes + um transform dedicado (`babel-jest` com `@babel/preset-env`, novo `babel.esm-interop.config.js`) só para arquivos `.mjs`, aplicado em ambos `test/jest-e2e.json` e no jest config do `package.json`. Não estava previsto no plano original; é puramente infraestrutura de teste, sem impacto no código de produção.
+  - O tipo `Request` usado pelos hooks do `@tus/server` não é reexportado por `@tus/server` — é `ServerRequest` do pacote `srvx` (`@tus/server`'s `types.d.ts` importa como `import type { ServerRequest as Request } from 'srvx'`); corrigido o import para vir diretamente de `srvx`.
+  - `onUploadCreate` originalmente deixava `DomainException` (lançada por `VideosService.assertOwnedDraft`) vazar sem tradução — o `@tus/server` só sabe formatar erros com a forma `{status_code, body}` (sua própria convenção, não a do Nest), então qualquer outro tipo de erro lançado dali vira `500` genérico. Adicionado um `catch` que traduz `DomainException` para essa forma antes de relançar.
+  - Erros de lint (`only-throw-error`) exigiram transformar o helper `jsonError` de um objeto literal `{status_code, body}` em uma classe `TusError extends Error` com essas mesmas propriedades — mantém compatibilidade com a leitura que `@tus/server` faz do erro (`error.status_code`/`error.body`) e ainda assim lança um `Error` de verdade.
+  - Bug de parsing de rota corrigido em `TusUploadMiddleware`: o `req.path` visto dentro do middleware é **relativo ao prefixo montado** (`/uploads`) — para `HEAD /uploads/{id}` o `req.path` é `/{id}`, não `/uploads/{id}`. O parsing original assumia path absoluto (`split('/')[1]`) e sempre lia `uploadId` como `undefined`, deixando a checagem de posse do dono nunca disparar para PATCH/HEAD/DELETE; corrigido para `split('/')[0]`. Descoberto via teste E2E que esperava `403` e recebia `404` (rota "não encontrada" por engano, mascarando o bug).
+  - Respostas de erro geradas pelo próprio `@tus/server` (rejeições dentro dos hooks, ex. `onUploadCreate`) não passam pelos `ExceptionFilter`s do Nest e não setam `Content-Type: application/json` — o corpo é JSON válido, mas chega como texto puro. Os testes E2E para esses casos fazem `JSON.parse(res.text)` em vez de usar `res.body`. Erros vindos do `TusUploadMiddleware` (checagem de posse pré-tus, incluindo o `HEAD`/`PATCH` de recurso existente) passam normalmente pelo `DomainExceptionFilter` e têm `res.body` populado do jeito usual.
+  - Fluxo de "retomada após queda de conexão" testado via `tus-js-client` (nova devDependency): primeira sessão sobe 1 chunk e chama `upload.abort()`; segunda sessão usa `uploadUrl` apontando direto para a URL do recurso (determinística, já que `namingFunction` força o id do recurso `tus` a ser igual ao `videoId`) — o próprio `tus-js-client` faz o `HEAD` para descobrir o offset e retoma o `PATCH` daí. Precisou de `app.listen(0)` (porta real) no `beforeAll`, diferente do padrão usual de `app.getHttpServer()` puro dos outros E2E specs, porque `tus-js-client` é um cliente HTTP real e precisa de uma URL de verdade.
 
 ### SI-03.6 — Worker de Processamento de Vídeo (FFmpeg + Dead-letter)
 - **Status:** pending

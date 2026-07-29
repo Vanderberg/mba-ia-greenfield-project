@@ -39,7 +39,13 @@ export class VideosService {
     const video = this.videoRepository.create({
       id,
       channel_id: channelId,
-      storage_key: `videos/${id}/original`,
+      // @tus/s3-store always writes the finished object under the bare
+      // tus resource id (per its `create()`/`getUpload()` internals) —
+      // there is no hook to namespace this key. Since `namingFunction`
+      // (TusUploadService) forces the tus resource id to equal this
+      // video's id, storage_key must match that exact key, not a
+      // `videos/{id}/...`-prefixed path.
+      storage_key: id,
     });
     return this.videoRepository.save(video);
   }

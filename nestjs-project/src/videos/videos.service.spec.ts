@@ -32,7 +32,7 @@ describe('VideosService', () => {
       const video = await service.createDraft('channel-1');
 
       expect(video.id).toBeDefined();
-      expect(video.storage_key).toBe(`videos/${video.id}/original`);
+      expect(video.storage_key).toBe(video.id);
       expect(video.channel_id).toBe('channel-1');
     });
   });

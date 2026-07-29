@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
-**Status:** in_progress
-**SIs:** 8/9 completed
+**Status:** completed
+**SIs:** 9/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -90,6 +90,14 @@
   - `DraftCleanupProcessor` é testado via instanciação direta (`new DraftCleanupProcessor(videoRepository)`) com um `DataSource` de teste puro (mesmo padrão de `video.entity.integration-spec.ts`), sem subir o `WorkerModule`/BullMQ completo — a lógica testável é a query de limpeza, não o mecanismo de fila em si (já coberto indiretamente por `video.processor.integration-spec.ts` no SI-03.6).
 
 ### SI-03.9 — Suíte E2E do Fluxo Completo de Upload, Processamento e Entrega
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 3 E2E (`videos-upload-flow.e2e-spec.ts`: fluxo feliz completo até `stream`/`download`; `videos-upload-resume.e2e-spec.ts`: mesmo fluxo após queda+retomada real; `videos-processing-failure.e2e-spec.ts`: arquivo inválido esgota `attempts` e chega a `status: 'failed'`) — suíte completa: 175 unit/integration + 78 E2E
+- **Observations:**
+  - **Dois bugs reais de produção encontrados só nesta SI**, exatamente porque é a primeira a validar contra o `video-worker` de verdade (não um `WorkerModule` isolado montado dentro do próprio teste, como nos SIs 03.6/03.8):
+    1. **`WorkerModule` não registrava `Channel` nem `User` em `TypeOrmModule.forFeature`** — só `Video`. `autoLoadEntities: true` só descobre uma entidade se ALGUM módulo a registra via `forFeature`; como `Video` tem `@ManyToOne(() => Channel)` e `Channel` tem `@OneToOne(() => User)`, o boot real do worker falhava com `TypeORMError: Entity metadata for Video#channel was not found` (e depois `Channel#user`) assim que uma requisição real chegava à fila. Nenhum teste anterior pegou isso porque SI-03.6/03.8 usavam `createTestDataSource([User, Channel, Video])` (array explícito) em vez de subir o `WorkerModule` real. Corrigido adicionando `Channel` e `User` ao `forFeature`.
+    2. **`Video.storage_key` nunca bateu com a chave real gravada no MinIO.** `VideosService.createDraft` gerava `storage_key: videos/{id}/original`, mas `@tus/s3-store` sempre grava o objeto final sob a chave crua `upload.id` (confirmado lendo `node_modules/@tus/s3-store/dist/index.js` — `Key: upload.id`, sem nenhum hook de customização de chave na `Options` do pacote). Como `namingFunction` força `upload.id === videoId`, todo `VideoProcessor.process()` falhava o `downloadToFile` com "objeto não encontrado" — **para qualquer vídeo, válido ou não** — explicando por que até o teste de fluxo feliz (vídeo real via ffmpeg) esgotava as tentativas e virava `failed`. Corrigido: `storage_key` agora é só o `id` (sem prefixo `videos/`). TD-04's exemplo de formato de chave (`videos/{id}/original`) não reflete o comportamento real do `@tus/s3-store` adotado em TD-03 — os dois TDs nunca tinham sido validados juntos ponta a ponta antes desta SI.
+  - Essas duas correções tocam SIs anteriores (`WorkerModule` do SI-03.6, `VideosService.createDraft` do SI-03.4) mas são inseparáveis do propósito desta SI — sem elas, nenhum vídeo jamais chegaria a `status: 'ready'` contra a infraestrutura real, o que é exatamente a lacuna que SI-03.9 existe para fechar.
+  - Como estes três specs dependem de um consumidor real da fila (não um `WorkerModule` de teste), o processo do worker precisa estar rodando de fato: `docker compose exec video-worker npm run start:worker:dev` (ou `npx ts-node -r tsconfig-paths/register src/worker/main.ts` para inicialização mais rápida sem watch mode). Sem isso, os três specs desta SI **ficam pendurados até o timeout** (60-150s) esperando um `status` que nunca muda — não há sinalização de erro imediata, então vale checar `docker compose ps`/logs do `video-worker` primeiro se esses specs travarem.
+  - `nest start --watch` mostrou-se extremamente lento neste ambiente (bind mount Docker no Windows) — o primeiro compile levou ~7 minutos. Trocado por `ts-node -r tsconfig-paths/register src/worker/main.ts` (sem watch, sem rebuild incremental) para iniciar o worker manualmente durante o desenvolvimento desta SI — reduziu o boot para ~25-40s.
+  - Teste de retomada (`videos-upload-resume`) precisou de um `chunkSize` bem menor (2048 bytes) que o vídeo de teste sintetizado — com o `chunkSize` de 1MB usado no SI-03.5 (para um buffer sintético de 3MB), o vídeo real gerado via ffmpeg (~11KB) cabia inteiro num único chunk, fazendo o upload terminar (`onSuccess`) antes do `abort()` conseguir interromper nada.
+  - O teste de falha de processamento precisou de timeout generoso (120s de espera + 150s no `it`) — 3 tentativas com backoff exponencial (base 5s) mais o tempo real de download+ffprobe em cada tentativa somam bem mais que os 60s usados nos outros specs desta SI.

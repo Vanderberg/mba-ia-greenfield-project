@@ -11,7 +11,9 @@ import {
   DRAFT_CLEANUP_QUEUE,
   PROCESS_VIDEO_QUEUE,
 } from '../queue/queue.constants';
+import { Channel } from '../channels/entities/channel.entity';
 import { StorageModule } from '../storage/storage.module';
+import { User } from '../users/entities/user.entity';
 import { Video } from '../videos/entities/video.entity';
 import { DraftCleanupProcessor } from './draft-cleanup.processor';
 import { DraftCleanupScheduler } from './draft-cleanup.scheduler';
@@ -39,7 +41,7 @@ import { VideoProcessor } from './video.processor';
         synchronize: false,
       }),
     }),
-    TypeOrmModule.forFeature([Video]),
+    TypeOrmModule.forFeature([Video, Channel, User]),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [queueConfig.KEY],

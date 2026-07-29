@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 5/9 completed
+**SIs:** 6/9 completed
 
 ### SI-03.1 — Infra: Dependências, Docker Compose e Namespaces de Configuração
 - **Status:** completed
@@ -58,9 +58,17 @@
   - Fluxo de "retomada após queda de conexão" testado via `tus-js-client` (nova devDependency): primeira sessão sobe 1 chunk e chama `upload.abort()`; segunda sessão usa `uploadUrl` apontando direto para a URL do recurso (determinística, já que `namingFunction` força o id do recurso `tus` a ser igual ao `videoId`) — o próprio `tus-js-client` faz o `HEAD` para descobrir o offset e retoma o `PATCH` daí. Precisou de `app.listen(0)` (porta real) no `beforeAll`, diferente do padrão usual de `app.getHttpServer()` puro dos outros E2E specs, porque `tus-js-client` é um cliente HTTP real e precisa de uma URL de verdade.
 
 ### SI-03.6 — Worker de Processamento de Vídeo (FFmpeg + Dead-letter)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 2 passing (`video.processor.integration-spec.ts`: fluxo real com FFmpeg+MinIO+BullMQ marcando `status: ready` com duração/thumbnail; dead-letter esgotando `attempts` e marcando `status: failed`) — suíte completa: 170 unit/integration + 65 E2E
+- **Observations:**
+  - `attempts`/`backoff` do job (per TD-02's dead-letter) são configurados no **producer**, não no worker — adicionado `PROCESS_VIDEO_JOB_OPTIONS` (`attempts: 3`, backoff exponencial 5s) em `queue.constants.ts` e aplicado no `queue.add(...)` de `TusUploadService.onUploadFinish` (SI-03.5), já que é ali que o job é de fato enfileirado.
+  - `WorkerModule` é um `NestApplicationContext` totalmente separado do `AppModule` da API (próprio `TypeOrmModule.forRootAsync` + `BullModule.forRootAsync`/`registerQueue` + `StorageModule`), iniciado via `NestFactory.createApplicationContext` em `src/worker/main.ts` — processo `video-worker` independente, per TD-02.
+  - `StorageService` ganhou `downloadToFile(key, destinationPath)` (novo método, não existia) — usa `GetObjectCommand` + `stream/promises`' `pipeline` para gravar o objeto em disco local; necessário porque `ffprobe`/`ffmpeg` exigem acesso aleatório (seek) ao arquivo (moov atom no fim do MP4, thumbnail em timestamp arbitrário) — per TD-05's Opção A, um stream direto não serviria.
+  - `@OnWorkerEvent('failed')` (decorator do `@nestjs/bullmq`) usado em vez de acessar `worker.on('failed', ...)` manualmente — é o wrapper idiomático do Nest para o mesmo evento do BullMQ; verifica `job.attemptsMade >= job.opts.attempts` para só marcar `status: failed` no esgotamento real (não em toda tentativa falha intermediária).
+  - Upsert idempotente: `videoRepository.update({id}, {status:'ready', thumbnail_key, duration_seconds})` sempre escreve o estado final completo (nunca incrementa/agrega) — um retry do mesmo `jobId` após crash do worker reprocessa em segurança, per TD-02.
+  - Arquivo temporário local (`os.tmpdir()/video-{videoId}-*`) sempre apagado em bloco `finally`, sucesso ou falha, per TD-05.
+  - Bug real de configuração de teste encontrado durante a implementação: o `TestingModule` do teste de integração esqueceu `TypeOrmModule.forFeature([Video])` — a falha de resolução de DI (`Nest can't resolve dependencies of the VideoProcessor`) só apareceu depois de ~45s (overhead do `ts-jest`/compile), e como o `afterAll` também falhava (`queue` nunca chegou a ser atribuída), as conexões Redis/Postgres abertas pelo `BullModule`/`TypeOrmModule` impediam o processo Jest de encerrar — parecia um "hang" indefinido até se rodar com um wrapper `timeout` do shell para forçar a saída e revelar o erro real.
+  - Vídeo de teste sintetizado via `ffmpeg -f lavfi -i testsrc=...` diretamente no `beforeAll` do teste de integração (sem commitar um asset binário no repo).
 
 ### SI-03.7 — Endpoints de Streaming e Download
 - **Status:** pending

@@ -11,7 +11,10 @@ import { BEARER_PREFIX } from '../auth/auth.constants';
 import type { JwtPayload } from '../auth/auth.types';
 import { DomainException } from '../common/exceptions/domain.exception';
 import storageConfig from '../config/storage.config';
-import { PROCESS_VIDEO_QUEUE } from '../queue/queue.constants';
+import {
+  PROCESS_VIDEO_JOB_OPTIONS,
+  PROCESS_VIDEO_QUEUE,
+} from '../queue/queue.constants';
 import { VideosService } from '../videos/videos.service';
 
 const TEN_GB = 10 * 1024 ** 3;
@@ -97,7 +100,11 @@ export class TusUploadService {
       onUploadFinish: async (_req, upload) => {
         const videoId = upload.id;
         await this.videosService.markProcessing(videoId);
-        await this.queue.add('process-video', { videoId }, { jobId: videoId });
+        await this.queue.add(
+          'process-video',
+          { videoId },
+          { jobId: videoId, ...PROCESS_VIDEO_JOB_OPTIONS },
+        );
         return {};
       },
     });

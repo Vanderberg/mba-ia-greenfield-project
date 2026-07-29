@@ -7,6 +7,9 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
+import type { Readable } from 'stream';
 import storageConfig from '../config/storage.config';
 
 export interface GetPresignedUrlOptions {
@@ -52,6 +55,16 @@ export class StorageService {
   async putObject(key: string, body: Buffer | Uint8Array): Promise<void> {
     await this.internalClient.send(
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body }),
+    );
+  }
+
+  async downloadToFile(key: string, destinationPath: string): Promise<void> {
+    const response = await this.internalClient.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    await pipeline(
+      response.Body as Readable,
+      createWriteStream(destinationPath),
     );
   }
 

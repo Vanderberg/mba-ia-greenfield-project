@@ -19,12 +19,23 @@ This is a monorepo with two main areas:
 See `docs/diagrams/software-arch.mermaid` for the full diagram. Key containers:
 
 - **Frontend** (Next.js) → calls API via REST, streams from Object Storage
-- **API** (Nest.js) → business rules, auth, reads/writes DB, uploads to storage, publishes jobs to queue, sends emails
-- **Video Worker** (FFmpeg) → consumes jobs from queue, processes videos, updates DB and storage
+- **API** (Nest.js) → business rules, auth, reads/writes DB, mounts the resumable (`tus`) upload endpoint, issues presigned storage URLs, publishes jobs to queue, sends emails
+- **Video Worker** (NestJS application context + FFmpeg, separate process — `nestjs-project/src/worker/`) → consumes `process-video` jobs from the queue, extracts duration/thumbnail, updates DB and storage; also runs the scheduled orphaned-draft cleanup job
 - **Database** (PostgreSQL) → users, channels, videos, comments, likes
-- **Object Storage** (S3/MinIO) → video files and thumbnails
-- **Message Queue** (TBD) → video processing job queue
+- **Object Storage** (S3/MinIO) → video files and thumbnails, served to clients via short-lived presigned URLs
+- **Message Queue** (BullMQ / Redis) → video processing job queue, decided in `docs/decisions/technical-decisions-phase-03-videos.md` (TD-02)
 - **Email Service** (SMTP) → account confirmation and password recovery
+
+## Video Module (Phase 03)
+
+Implemented in `nestjs-project/src/videos/`, `src/uploads/`, `src/storage/`, `src/queue/`, and `src/worker/`. See `docs/phases/phase-03-videos/phase-03-videos.md` for the full Technical Specifications (Data Model, API Contracts, Authorization Matrix, Error Catalog, Events/Messages) and `docs/decisions/technical-decisions-phase-03-videos.md` for the underlying decisions (TD-01 through TD-06).
+
+- **Draft pre-registration:** `POST /videos` creates a `Video` row in `status: 'draft'` before any upload byte is sent; `GET /videos/:id` returns status/metadata (visible to any requester once `ready`, owner-only otherwise).
+- **Resumable upload:** `POST/HEAD/PATCH /uploads` implements the `tus` protocol (`@tus/server` + `@tus/s3-store`) for uploads up to 10GB, authenticated and scoped to the owning channel's draft. The `tus` resource id equals the video's id, and the object is stored in MinIO under that same id (not a `videos/{id}/...`-prefixed key — `@tus/s3-store` does not support key namespacing).
+- **Processing:** on upload completion, the API enqueues a `process-video` BullMQ job; the separate `video-worker` process downloads the object, runs `ffprobe`/`ffmpeg` (duration + thumbnail), uploads the thumbnail, and flips `Video.status` to `ready` (or `failed` once retries are exhausted — dead-letter).
+- **Delivery:** `GET /videos/:id/stream` and `GET /videos/:id/download` redirect (302) to a short-lived presigned MinIO URL — video bytes never transit the API process.
+- **Orphaned-draft cleanup:** a repeatable BullMQ job (every 6h, same worker process) deletes `Video` rows stuck in `status: 'draft'` for more than 48h.
+- **Compose services added for this phase:** `minio` (object storage), `redis` (queue broker), `video-worker` (separate container running the worker process) — see `nestjs-project/compose.yaml`.
 
 ## Docker Networking
 

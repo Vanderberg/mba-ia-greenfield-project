@@ -19,6 +19,14 @@ export interface EnvVars {
   MAIL_PORT: number;
   MAIL_FROM: string;
   SWAGGER_ENABLED: 'true' | 'false';
+  S3_INTERNAL_ENDPOINT: string;
+  S3_PUBLIC_ENDPOINT: string;
+  S3_REGION: string;
+  S3_ACCESS_KEY_ID: string;
+  S3_SECRET_ACCESS_KEY: string;
+  S3_BUCKET: string;
+  REDIS_HOST: string;
+  REDIS_PORT: number;
 }
 
 export const envValidationSchema = Joi.object<EnvVars>({
@@ -42,4 +50,12 @@ export const envValidationSchema = Joi.object<EnvVars>({
   MAIL_PORT: Joi.number().default(1025),
   MAIL_FROM: Joi.string().default('"StreamTube" <noreply@streamtube.com>'),
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  S3_INTERNAL_ENDPOINT: Joi.string().uri().default('http://minio:9000'),
+  S3_PUBLIC_ENDPOINT: Joi.string().uri().default('http://localhost:9000'),
+  S3_REGION: Joi.string().default('us-east-1'),
+  S3_ACCESS_KEY_ID: Joi.string().required(),
+  S3_SECRET_ACCESS_KEY: Joi.string().required(),
+  S3_BUCKET: Joi.string().default('streamtube-videos'),
+  REDIS_HOST: Joi.string().default('redis'),
+  REDIS_PORT: Joi.number().default(6379),
 });

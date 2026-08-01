@@ -13,8 +13,10 @@ docker compose ps   # all services must show status "running"
 Then verify each infrastructure service is actually ready to accept connections — not just running:
 
 - **PostgreSQL:** `docker compose exec db pg_isready -U streamtube` — expect `accepting connections`
+- **MinIO:** `docker compose exec minio mc ready local` — expect `The cluster is ready`
+- **Redis:** `docker compose exec redis redis-cli ping` — expect `PONG`
 
-Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment".
+Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment". The same rule applies to the video worker (`npm run start:worker:dev`) — it is part of the application, not infrastructure, even though it runs in its own `video-worker` Compose service.
 
 ## Development Environment
 
@@ -29,11 +31,18 @@ docker compose exec nestjs-api npm install
 
 # Run the dev server (watch mode)
 docker compose exec nestjs-api npm run start:dev
+
+# Run the video worker (watch mode) — separate process/container, only when explicitly asked
+docker compose exec video-worker npm run start:worker:dev
 ```
 
-Services:
+Services (`nestjs-project/compose.yaml`):
 - `nestjs-api` — NestJS API, port `3000`
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `mailpit` — SMTP test server, web UI on port `8025`
+- `minio` — S3-compatible object storage (video files + thumbnails), API port `9000`, console port `9001`
+- `redis` — BullMQ queue broker, port `6379`
+- `video-worker` — separate container for the video-processing worker process (`src/worker/main.ts`); alive via `tail -f /dev/null` like `nestjs-api`, commands run through `docker compose exec`
 
 All verification and teardown commands run on the **host machine**:
 
@@ -71,6 +80,15 @@ npm run test:e2e                         # End-to-end tests (always with --runIn
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
 npm run lint                             # ESLint with auto-fix
 npm run format                           # Prettier formatting
+
+npm run storage:bootstrap                # Create/verify the MinIO video bucket (idempotent)
+```
+
+### Video worker commands (prefix with `docker compose exec video-worker`)
+
+```bash
+npm run start:worker:dev                 # Worker with hot-reload (nest start --watch --entryFile worker/main)
+npm run start:worker:prod                # Run compiled worker build (node dist/worker/main)
 ```
 
 ### Host-only commands (Docker / connectivity probes)
@@ -148,6 +166,16 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 
 - Each domain feature gets its own module (e.g., `UsersModule`, `VideosModule`) registered in `AppModule`
 - Controllers handle HTTP routing; Services hold business logic; both are scoped to their module
+
+### Video module (Phase 03)
+
+- `src/videos/` — `Video` entity + `VideosController`/`VideosService`: draft pre-registration (`POST /videos`), status/metadata read (`GET /videos/:id`), and delivery redirects (`GET /videos/:id/stream`, `GET /videos/:id/download`)
+- `src/uploads/` — `TusUploadService`/`TusUploadMiddleware`/`UploadsModule`: mounts the resumable `tus` protocol (`@tus/server` + `@tus/s3-store`) at `/uploads`, authenticated and scoped to the draft's owning channel
+- `src/storage/` — `StorageService`: S3/MinIO client (dual endpoint — internal for server-to-server, public for presigned URLs handed to clients), presigned URL generation, bucket bootstrap
+- `src/queue/` — `QueueModule` + BullMQ queue constants/job options shared by the API (producer) and the worker (consumer)
+- `src/worker/` — separate `NestFactory.createApplicationContext` process (`main.ts`/`worker.module.ts`): `VideoProcessor` (FFmpeg duration/thumbnail extraction, dead-letter on exhausted retries) and `DraftCleanupProcessor`/`DraftCleanupScheduler` (scheduled orphaned-draft cleanup)
+
+Full contracts and decisions: `docs/phases/phase-03-videos/phase-03-videos.md`, `docs/decisions/technical-decisions-phase-03-videos.md`.
 
 ## Code Conventions
 

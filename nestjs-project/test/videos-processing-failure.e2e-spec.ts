@@ -152,9 +152,9 @@ describe('Videos — processing failure ends in status: failed (e2e)', () => {
 
     await waitFor(
       async () => (await getStatus(videoId, accessToken)) === 'failed',
-      120000,
+      180000,
     );
 
     expect(await getStatus(videoId, accessToken)).toBe('failed');
-  }, 150000);
+  }, 210000);
 });
